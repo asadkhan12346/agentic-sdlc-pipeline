@@ -10,6 +10,9 @@ tools:
   - search/changes
   - execute/runInTerminal
   - execute/getTerminalOutput
+  - github/get_me
+  - github/create_branch
+  - github/push_files
   - github/create_pull_request
   - github/search_pull_requests
   - github/pull_request_read
@@ -30,19 +33,26 @@ Stage A writes `artifacts/pr.md` and `CHANGELOG.md`. Stage B creates a branch an
 - `CHANGELOG.md`
 
 ## Forbidden
-Never edit `sdlc/`, `orchestrator.py`, `hooks/**`, or `.github/hooks/**`. Stage A terminal commands are limited to status, read-only inspection, and submit pr. Stage B permits only the listed safety checks and exact sequence below. Never force push, push to main/master, use `-A`, `.`, or `--no-verify`. Never approve, reject, or reopen. Never merge a pull request. Never push to main. Never use any GitHub tool other than `github/create_pull_request`, `github/search_pull_requests`, and `github/pull_request_read`. In particular never use `push_files`, `create_or_update_file`, `delete_file`, `create_branch`, `create_repository`, `fork_repository`, `update_pull_request`, `update_pull_request_branch`, `update_issue_comment` or `pull_request_review_write`. Never use Atlassian tools.
+Never edit `sdlc/`, `orchestrator.py`, `hooks/**`, or `.github/hooks/**`. Stage A terminal commands are limited to status, read-only inspection, and submit pr. Stage B uses GitHub MCP only for branch creation, pushing the exact reviewed files, PR lookup, creation, and confirmation. Never use local `git push`, force push, push to main/master, `git add -A`, `git add .`, or `--no-verify`. Never approve, reject, or reopen a phase. Never merge a pull request. Never use GitHub tools other than `get_me`, `create_branch`, `push_files`, `search_pull_requests`, `create_pull_request`, and `pull_request_read`. Never use file mutation, deletion, repository creation, branch updates, issue, review, or Atlassian tools.
 
 ## Preconditions
-Run `python orchestrator.py status`. Stage A requires pr ACTIVE and `Result: PASS` in verify. Stage B requires all phases APPROVED and an explicit human `go` in chat. If either precondition fails, stop.
+Run `python orchestrator.py status`. Stage A requires pr ACTIVE and `Result: PASS` in verify. Stage B requires every phase APPROVED, `Result: PASS` in verify, and the human's explicit `go` in this invocation. If any precondition fails, stop without changing GitHub.
 
 ## Procedure
-Stage A: write traceable PR materials, submit, then stop. Stage B: verify Git root, remote, and non-main branch; run `git switch -c sdlc/<slug>` with a slug no longer than 40 characters; run `git add` with explicit paths only: `artifacts todo tests/test_todo.py CHANGELOG.md sdlc/state.json sdlc/audit.log.jsonl`; inspect `git diff --cached --name-only`; run `git commit`; run `git push -u origin <branch>`. Then use `search_pull_requests` to check for an existing PR on that branch; if none, use `create_pull_request` as a DRAFT with the pushed branch as head, the default branch as base, a title from the commit, and the body from `artifacts/pr.md`; then use `pull_request_read` to confirm and report the URL. Stop on any error and report it exactly. Do not claim a PR exists unless command output confirms it.
+Stage A: write traceable PR materials, submit, then stop. Stage B:
+1. Re-run status and verify every phase is APPROVED and `artifacts/verify.md` says `Result: PASS`; confirm the human said `go` in this invocation.
+2. Inspect the Git root, `origin` URL, current branch, status, and diffs read-only. Derive the GitHub owner/repository from `origin`; require `main` as the target. Stop if the repository, intended changes, or changed-file list is ambiguous, or if there are unrelated, untracked, deleted, or runtime state/audit changes.
+3. Confirm every proposed file is an intended change in `artifacts/pr.md`, is within the approved phase-owned outputs or the two release files `artifacts/pr.md` and `CHANGELOG.md`, and is not under `sdlc/`, `hooks/`, `.github/hooks/`, `.git/`, or a secrets/runtime-data path. Inspect the complete diff and exact file contents before sending them to GitHub.
+4. Call `get_me` before other GitHub operations. Create a unique `sdlc/<slug>` feature branch from `main` with `create_branch` (slug at most 40 characters). Never target the protected base for writes.
+5. Use `push_files` once with only the exact reviewed path/content pairs and a conventional commit message. If any intended change is a deletion or cannot be represented exactly, stop rather than using another mutation tool.
+6. Use `search_pull_requests` to check for an existing PR with this head and base `main`. If one already exists, read it and report it without creating a duplicate. Otherwise call `create_pull_request` with head set to the new branch, base `main`, a concise title, the traceable body from `artifacts/pr.md`, and `draft: true`.
+7. Call `pull_request_read` and verify the returned head, base, changed files, draft/open state, and URL. Report only the actual returned results. Stop on the first error. Never merge.
 
 ## Required artifact structure
 `artifacts/pr.md` uses Summary, What changed, Traceability, Test evidence, Risks, Rollback, Reviewer checklist. `CHANGELOG.md` follows Keep a Changelog with `## [Unreleased]`, Added, Changed, and Fixed.
 
 ## Self-check before submit
-For Stage A, check verification PASS, requirement coverage, test evidence, risks, and rollback. For Stage B, check branch, remote, exact staged names, and actual command outputs.
+For Stage A, check verification PASS, requirement coverage, test evidence, risks, and rollback. For Stage B, check human `go`, all approvals, target repository, `main` base, exact allowed file/content pairs, MCP branch/commit result, duplicate-PR search, and PR readback.
 
 ## Approval gate
 Stage A: run `python orchestrator.py submit pr`; on refusal repair only owned release files and retry. Then STOP and print EXACTLY `Awaiting human approval. Run: python orchestrator.py approve pr --by <your-name>`. Stage B is a later `/pr` invocation and requires the human's exact `go`; do not proceed without it.
