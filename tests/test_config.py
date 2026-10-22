@@ -80,6 +80,27 @@ class ConfigurationTests(unittest.TestCase):
         self.assertIn("execute/testFailure", verify)
         self.assertNotIn("execute/testFailure", review)
 
+    def test_pr_stage_b_uses_mcp_and_preserves_human_gate(self) -> None:
+        agent = (ROOT / ".github" / "agents" / "pr.agent.md").read_text(encoding="utf-8")
+        prompt = (ROOT / ".github" / "prompts" / "pr.prompt.md").read_text(encoding="utf-8")
+        skill = (ROOT / ".github" / "skills" / "pr" / "SKILL.md").read_text(encoding="utf-8")
+        for document in (agent, prompt, skill):
+            with self.subTest(document=document[:40]):
+                self.assertIn("explicit `go`", document)
+                self.assertIn("create_branch", document)
+                self.assertIn("push_files", document)
+                self.assertIn("search_pull_requests", document)
+                self.assertIn("create_pull_request", document)
+                self.assertIn("pull_request_read", document)
+                self.assertIn("base `main`", document)
+                self.assertIn("Never merge", document)
+                self.assertNotIn("git push -u origin", document)
+                self.assertNotIn("sdlc/state.json", document)
+        self.assertIn("draft: true", agent)
+        self.assertIn("draft: true", skill)
+        self.assertIn("Result: PASS", agent)
+        self.assertIn("Result: PASS", skill)
+
     def test_skills_and_hook_registration(self) -> None:
         for skill in ("requirements", "verify", "pr"):
             text = (ROOT / ".github" / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")
