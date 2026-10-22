@@ -1,0 +1,15 @@
+{
+  "next_id": 3,
+  "tasks": [
+    {
+      "id": 1,
+      "title": "fruit",
+      "status": "open"
+    },
+    {
+      "id": 2,
+      "title": "vegetables",
+      "status": "open"
+    }
+  ]
+}
